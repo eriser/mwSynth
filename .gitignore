@@ -1,0 +1,14 @@
+
+# output folders
+/x64
+/Release
+/Debug
+
+# Visual Studio files
+/ipch
+/*.suo
+/*.vcxproj.user
+/*.opensdf
+/*.sdf
+
+/*.wav
