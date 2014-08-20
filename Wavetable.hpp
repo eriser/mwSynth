@@ -1,5 +1,4 @@
 #pragma once
-#include "Math.hpp"
 
 class mwInterpolator final
 {
@@ -33,7 +32,7 @@ public:
 
     /**
      * Downsamples two samples into one using IIR lowpass filter.
-     * @param x0,x1 Input samples.
+     * @param input Array of 2 input samples.
      */
     float Downsample(float* input);
 };
@@ -59,12 +58,22 @@ public:
     /**
      * Interpolate sample from specified mipmap level.
      * Simple FPU version.
-     * @param ratio sampling ratio: 1.0 - normal, 2.0 - 2x less harmonics, etc...
-     * @param phase sampling point [0.0 .. 1.0)
+     * @param mipmap        mipmap index
+     * @param phase         sampling point [0.0 .. 1.0)
+     * @param pInterpolator interpolator configuration pointer
      */
-    float Sample(float ratio, float phase, const mwInterpolator* pInterpolator) const;
-    float Sample_SSE(float ratio, float phase, const mwInterpolator* pInterpolator) const;
-    float Sample_AVX(float ratio, float phase, const mwInterpolator* pInterpolator) const;
+    float Sample_FPU(int mipmap, float phase, const mwInterpolator* pInterpolator) const;
+
+    /**
+     * SSE version of @p Sample method.
+     */
+    __m128 Sample_SSE(int mipmap, __m128 phase, const mwInterpolator* pInterpolator) const;
+
+    /**
+     * AVX version of @p Sample method.
+     */
+    float Sample_AVX(int mipmap, float phase, const mwInterpolator* pInterpolator) const;
+
 
     /**
      * Synthesize samples buffer.
@@ -74,6 +83,11 @@ public:
      * @param[out] pOutput Buffer to write.
      */
     void Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
+
+    /**
+     * FPU version of @p Synth method.
+     */
+    void Synth_FPU(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
 
     /**
      * SSE version of @p Synth method.

@@ -1,5 +1,6 @@
 #include "stdafx.hpp"
 #include "Wavetable.hpp"
+#include "Math.hpp"
 
 #include <immintrin.h> // for AVX
 
@@ -27,16 +28,12 @@ inline float _mm256_hsum(__m256 x)
     return _mm_cvtss_f32(sum);
 }
 
-float mwWaveTable::Sample_AVX(float ratio, float phase, const mwInterpolator* pInterpolator) const
+float mwWaveTable::Sample_AVX(int mipmap, float phase, const mwInterpolator* pInterpolator) const
 {
-    int mipmap = Math::log2_int(ratio);
-    if (mipmap >= m_MipsNum) return 0.0f;
-    if (mipmap < 0) mipmap = 0;
-
     const float* pSrc = m_ppData[mipmap];
     float** pFilter = pInterpolator->data;
 
-    unsigned int mipmapSize = m_RootSize >> mipmap;
+    int mipmapSize = m_RootSize >> mipmap;
     phase *= (float)mipmapSize;
     unsigned int id = (unsigned int)phase;
 

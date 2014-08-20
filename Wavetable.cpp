@@ -1,5 +1,6 @@
 #include "stdafx.hpp"
 #include "Wavetable.hpp"
+#include "Math.hpp"
 
 void free_simd(void* ptr)
 {
@@ -244,12 +245,8 @@ int mwWaveTable::LoadData(float* pData, int order, const mwInterpolator* pInterp
     * ratio - sampling ratio: 1.0f - normal, 2.0f - 2x less harmonics, etc...
     * phase - sampling point [0...1.0f)
 */
-float mwWaveTable::Sample(float ratio, float phase, const mwInterpolator* pInterpolator) const
+float mwWaveTable::Sample_FPU(int mipmap, float phase, const mwInterpolator* pInterpolator) const
 {
-    int mipmap = Math::log2_int(ratio) + 2;
-    if (mipmap < 0) mipmap = 0;
-    if (mipmap >= m_MipsNum) return 0.0;
-
     unsigned int mipmapSize = m_RootSize >> mipmap;
     phase *= (float)mipmapSize;
     unsigned int id = (unsigned int)phase;
@@ -277,8 +274,8 @@ float mwWaveTable::Sample(float ratio, float phase, const mwInterpolator* pInter
     return sum;
 }
 
-void mwWaveTable::Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx,
-                        float* pOutput)
+void mwWaveTable::Synth_FPU(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx,
+                            float* pOutput)
 {
     for (size_t i = 0; i < samplesNum; i++)
     {
@@ -288,11 +285,16 @@ void mwWaveTable::Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContex
         float phaseB = phaseA + freq * 0.5f;
         if (phaseB > 1.0f) phaseB -= 1.0f;
 
+        float ratio = freq * (float)(m_RootSize);
+        int mipmap = Math::log2_int(ratio);
+        if (mipmap > m_MipsNum) mipmap = m_MipsNum;
+        if (mipmap < 0) mipmap = 0;
+
         pCtx->m_Phase = phaseB;
 
         float samples[2];
-        samples[0] = Sample_SSE(freq * (float)(m_RootSize), phaseA, pCtx->pInterpolator);
-        samples[1] = Sample_SSE(freq * (float)(m_RootSize), phaseB, pCtx->pInterpolator);
+        samples[0] = Sample_FPU(mipmap, phaseA, pCtx->pInterpolator);
+        samples[1] = Sample_FPU(mipmap, phaseB, pCtx->pInterpolator);
 
         pOutput[i] = pCtx->Downsample(samples);
     }
