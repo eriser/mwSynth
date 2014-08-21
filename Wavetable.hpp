@@ -80,3 +80,6 @@ public:
      */
     void Synth_SSE(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
 };
+
+void* malloc_simd(const size_t size);
+void free_simd(void* ptr);

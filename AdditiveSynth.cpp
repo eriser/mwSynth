@@ -1,5 +1,6 @@
 #include "stdafx.hpp"
 #include "Wavetable.hpp"
+#include <chrono>
 
 int main(int argc, char* argv[])
 {
@@ -8,9 +9,6 @@ int main(int argc, char* argv[])
 
     std::vector<float> samples;
     samples.reserve(1000000);
-
-    LARGE_INTEGER start, stop, frequency;
-    QueryPerformanceFrequency(&frequency);
 
     mwInterpolator interp;
     interp.Setup(16, 64);
@@ -28,7 +26,7 @@ int main(int argc, char* argv[])
     mwWaveTable wt;
     wt.LoadData(saw, WAVE_TABLE_SIZE_POW, &interp);
 
-    QueryPerformanceCounter(&start);
+    auto start = std::chrono::system_clock::now();
     {
         double freq = 0.0005;
         while (freq < 0.5)
@@ -43,16 +41,15 @@ int main(int argc, char* argv[])
             samples.push_back(samplesBuffer[1]);
         }
     }
-    QueryPerformanceCounter(&stop);
+    auto end = std::chrono::system_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    double t = (double)elapsed.count() * 1.0e-9;
+    std::cout << "Elapsed time: " << t << std::endl;
+    std::cout << "Megasamples generated: " << (float)samples.size() * 1.0e-6 << std::endl;
+    std::cout << "Megasamples per second = " << (float)samples.size() / t * 1.0e-6 << std::endl;
+    std::cout << "Max generators num     = " << (float)samples.size() / t / 44100.0f << std::endl;
 
-    float t = (float)(stop.QuadPart - start.QuadPart) / (float)frequency.QuadPart;
-    printf("Total time             = %.3f\n", t);
-    printf("Megasamples generated  = %.2f\n", (float)samples.size() * 0.000001f);
-    printf("Megasamples per second = %.2f\n", (float)samples.size() / t * 0.000001f);
-    printf("Max generators num     = %.1f\n", (float)samples.size() / t / 44100.0f);
-
-    FILE* pFile;
-    fopen_s(&pFile, "a.wav", "wb");
+    FILE* pFile = fopen("a.wav", "wb");
     fwrite(samples.data(), samples.size() * sizeof(float), 1, pFile);
     fclose(pFile);
 

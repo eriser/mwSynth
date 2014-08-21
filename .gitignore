@@ -10,5 +10,11 @@
 /*.vcxproj.user
 /*.opensdf
 /*.sdf
+/*.vsp
+/*.psess
+
+# CMake temporary files
+/CMakeFiles
+/CMakeCache.txt
 
 /*.wav

@@ -1,9 +1,9 @@
 #pragma once
 
+#include <string.h>
+#include <malloc.h>
 #include <stdio.h>
-#include <tchar.h>
 #include <math.h>
 #include <algorithm>
 #include <vector>
-
-#include <Windows.h>
+#include <iostream>

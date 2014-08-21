@@ -1,8 +1,10 @@
 #include "stdafx.hpp"
 #include "Wavetable.hpp"
 
+#include <immintrin.h> // for AVX
+
 // sum YMM register horizontally
-__forceinline float _mm256_hsum(__m256 x)
+inline float _mm256_hsum(__m256 x)
 {
     // hiQuad = ( x7, x6, x5, x4 )
     const __m128 hiQuad = _mm256_extractf128_ps(x, 1);
@@ -46,7 +48,8 @@ float mwWaveTable::Sample_AVX(float ratio, float phase, const mwInterpolator* pI
                                         _mm256_floor_ps(phase_scaled)); // phase interpolation coefficient
 
     // select base phase indicies
-    int phase_sel = _mm256_cvttps_epi32(phase_scaled).m256i_i32[0]; // float -> int casting
+    // _mm256_extractf128_si256(_mm256_cvttps_epi32(phase_scaled));
+    int phase_sel = 0;
 
 
     // FIR filter
@@ -56,13 +59,13 @@ float mwWaveTable::Sample_AVX(float ratio, float phase, const mwInterpolator* pI
         __m256 f0 = _mm256_load_ps(pFilter[phase_sel] + i);
         __m256 f1 = _mm256_load_ps(pFilter[phase_sel + 1] + i);
 
-        //__m256 f = _mm256_sub_ps(f0, _mm256_mul_ps(phase_factor_v, _mm256_sub_ps(f0, f1)));
-        __m256 f = _mm256_fmadd_ps(phase_factor, _mm256_sub_ps(f1, f0), f0);
+        __m256 f = _mm256_sub_ps(f0, _mm256_mul_ps(phase_factor, _mm256_sub_ps(f0, f1)));
+        //__m256 f = _mm256_fmadd_ps(phase_factor, _mm256_sub_ps(f1, f0), f0);
 
         __m256 x = _mm256_loadu_ps(pSrc + (id + i));
 
-        //sum_v = _mm256_add_ps(sum_v, _mm256_mul_ps(f, x));
-        sum_v = _mm256_fmadd_ps(f, x, sum_v);
+        sum_v = _mm256_add_ps(sum_v, _mm256_mul_ps(f, x));
+        // sum_v = _mm256_fmadd_ps(f, x, sum_v);
     }
 
     return _mm256_hsum(sum_v);

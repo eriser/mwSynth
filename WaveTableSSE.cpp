@@ -2,9 +2,10 @@
 #include "Wavetable.hpp"
 
 #include <xmmintrin.h>
+#include <smmintrin.h> // for SSE4
 
 // sum all XMM register horizontally
-__forceinline float _mm_hsum(__m128 x)
+inline float _mm_hsum(__m128 x)
 {
     const __m128 t = _mm_add_ps(x, _mm_movehl_ps(x, x));
     const __m128 sum = _mm_add_ss(t, _mm_shuffle_ps(t, t, 1));

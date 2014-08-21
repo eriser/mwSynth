@@ -3,17 +3,19 @@
 
 namespace Math {
 
+double PI = 3.14159265358979;
+
 double BlackmanHarris(double x)
 {
-    return 0.35875 - 0.48828 * cos(2 * M_PI * x) + 0.14128 * cos(4 * M_PI * x) - 0.01168 * cos(
-               6 * M_PI * x); //Blackman - Harris
+    return 0.35875 - 0.48828 * cos(2.0 * PI * x) + 0.14128 * cos(4.0 * PI * x) -
+           0.01168 * cos(6.0 * PI * x); //Blackman - Harris
 }
 
 double Sinc(double phase)
 {
     return ((abs(phase) < 1e-2) ?
-            (1.0 - M_PI * M_PI * phase * phase) :    // Taylor expansion at phase = 0
-            (sin(M_PI * phase) / (M_PI * phase)));
+            (1.0 - PI * PI * phase * phase) :    // Taylor expansion at phase = 0
+            (sin(PI * phase) / (PI * phase)));
 }
 
 void FFT(float* data, unsigned long nn)
@@ -46,7 +48,7 @@ void FFT(float* data, unsigned long nn)
     while (n > mmax)
     {
         istep = mmax << 1;
-        theta = -2.0f * (float)M_PI / (float)mmax;
+        theta = -2.0f * (float)PI / (float)mmax;
         wtemp = sin(0.5f * theta);
         wpr = -2.0f * wtemp * wtemp;
         wpi = sin(theta);

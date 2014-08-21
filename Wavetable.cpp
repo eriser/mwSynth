@@ -1,6 +1,27 @@
 #include "stdafx.hpp"
 #include "Wavetable.hpp"
 
+void free_simd(void* ptr)
+{
+#if defined WIN32
+    _aligned_free(ptr);
+#else
+    free(ptr);
+#endif
+}
+
+void* malloc_simd(const size_t size)
+{
+#if defined WIN32
+    return _aligned_malloc(size, 16);
+#elif defined __linux__
+    return memalign(16, size);
+#elif defined __MACH__
+    return malloc(size);
+#else
+    return valloc(size);
+#endif
+}
 
 mwWaveSynthContext::mwWaveSynthContext()
 {
@@ -66,7 +87,7 @@ mwInterpolator::~mwInterpolator()
     if (data)
     {
         for (int i = 0; i <= m_FilterPhases; i++)
-            _aligned_free(data[i]);
+            free_simd(data[i]);
 
         free(data);
         data = nullptr;
@@ -79,7 +100,7 @@ int mwInterpolator::Setup(int filterSize, int filterPhases)
     data = (float**)malloc(sizeof(void*) * (filterPhases + 1));
 
     for (int i = 0; i <= filterPhases; i++)
-        data[i] = (float*)_aligned_malloc(sizeof(float) * filterSize, 64);
+        data[i] = (float*)malloc_simd(sizeof(float) * filterSize);
 
     m_FilterPhases = filterPhases;
     m_FilterSize = filterSize;
