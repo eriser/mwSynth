@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 class mwInterpolator final
 {
     friend class mwWaveTable;
@@ -17,11 +19,12 @@ public:
 };
 
 #define IIR_FILTER_SIZE 11
+#define MAX_VOICES 16
 
 class mwWaveSynthContext final
 {
     friend class mwWaveTable;
-    float m_Phase;
+    std::vector<float> phases;
     float x[IIR_FILTER_SIZE];
     float y[IIR_FILTER_SIZE];
 
@@ -29,6 +32,17 @@ public:
     const mwInterpolator* pInterpolator;
 
     mwWaveSynthContext();
+
+    /**
+     * Clear filter history.
+     */
+    void Reset();
+
+    /**
+     * Set subvoices number and set initial phases.
+     * @param numVoices Number of subvoices
+     */
+    void Init(size_t numVoices, float* newPhases);
 
     /**
      * Downsamples two samples into one using IIR lowpass filter.
@@ -44,6 +58,8 @@ class mwWaveTable
     float** m_ppData;
 
 public:
+    typedef void (*SynthCallback)(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
+
     mwWaveTable();
     ~mwWaveTable();
 

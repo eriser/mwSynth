@@ -26,12 +26,21 @@ void* malloc_simd(const size_t size)
 
 mwWaveSynthContext::mwWaveSynthContext()
 {
-    m_Phase = 0.0f;
+    phases.push_back(0.0f);
+    Reset();
+}
+
+void mwWaveSynthContext::Reset()
+{
     for (int i = 0; i < IIR_FILTER_SIZE; ++i)
-    {
-        x[i] = 0.0f;
-        y[i] = 0.0f;
-    }
+        x[i] = y[i] = 0.0f;
+}
+
+void mwWaveSynthContext::Init(size_t numVoices, float* newPhases)
+{
+    phases.clear();
+    for (int i = 0; i < numVoices; ++i)
+        phases.push_back(newPhases[i]);
 }
 
 float mwWaveSynthContext::Downsample(float* input)
@@ -277,25 +286,39 @@ float mwWaveTable::Sample_FPU(int mipmap, float phase, const mwInterpolator* pIn
 void mwWaveTable::Synth_FPU(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx,
                             float* pOutput)
 {
+    // iterato through samples
     for (size_t i = 0; i < samplesNum; i++)
     {
-        float freq = pFreq[0];
-        float phaseA = pCtx->m_Phase + freq * 0.5f;
-        if (phaseA > 1.0f) phaseA -= 1.0f;
-        float phaseB = phaseA + freq * 0.5f;
-        if (phaseB > 1.0f) phaseB -= 1.0f;
+        float freq = pFreq[i];
 
-        float ratio = freq * (float)(m_RootSize);
-        int mipmap = Math::log2_int(ratio);
-        if (mipmap > m_MipsNum) mipmap = m_MipsNum;
-        if (mipmap < 0) mipmap = 0;
+        // cap frequency to half sample rate
+        if (freq > 0.5f) freq = 0.5f;
 
-        pCtx->m_Phase = phaseB;
+        float samples[2] = {0.0f, 0.0f};
 
-        float samples[2];
-        samples[0] = Sample_FPU(mipmap, phaseA, pCtx->pInterpolator);
-        samples[1] = Sample_FPU(mipmap, phaseB, pCtx->pInterpolator);
+        // iterate through subvoices
+        for (size_t j = 0; j < pCtx->phases.size(); ++j)
+        {
+            float phaseA = pCtx->phases[j] + freq * 0.5f;
+            float phaseB = pCtx->phases[j] + freq;
+            if (phaseA > 1.0f) phaseA -= 1.0f;
+            if (phaseB > 1.0f) phaseB -= 1.0f;
+            pCtx->phases[j] = phaseB;
+
+            float ratio = freq * (float)(m_RootSize);
+            int mipmap = Math::log2_int(ratio);
+            if (mipmap > m_MipsNum) mipmap = m_MipsNum;
+            if (mipmap < 0) mipmap = 0;
+
+            samples[0] += Sample_FPU(mipmap, phaseA, pCtx->pInterpolator);
+            samples[1] += Sample_FPU(mipmap, phaseB, pCtx->pInterpolator);
+        }
 
         pOutput[i] = pCtx->Downsample(samples);
     }
+}
+
+void mwWaveTable::Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput)
+{
+
 }

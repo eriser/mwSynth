@@ -50,32 +50,38 @@ __m128 mwWaveTable::Sample_SSE(int mipmap, __m128 phase, const mwInterpolator* p
 void mwWaveTable::Synth_SSE(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx,
                             float* pOutput)
 {
-    float phases[4];
     __m128 samples;
+    float phases[4];
 
-    phases[3] = pCtx->m_Phase;
+    __m128 ones = _mm_set1_ps(1.0f);
+    
     for (size_t i = 0; i < samplesNum; i += 2)
     {
-        // TODO: optimize
-        phases[0] = phases[3] + pFreq[i] * 0.5f;
-        phases[1] = phases[0] + pFreq[i] * 0.5f;
-        phases[2] = phases[1] + pFreq[i + 1] * 0.5f;
-        phases[3] = phases[2] + pFreq[i + 1] * 0.5f;
-        if (phases[0] > 1.0f) phases[0] -= 1.0f;
-        if (phases[1] > 1.0f) phases[1] -= 1.0f;
-        if (phases[2] > 1.0f) phases[2] -= 1.0f;
-        if (phases[3] > 1.0f) phases[3] -= 1.0f;
+        samples = _mm_setzero_ps();
 
-        float ratio = pFreq[i] * (float)(m_RootSize);
-        int mipmap = Math::log2_int(ratio);
-        if (mipmap > m_MipsNum) mipmap = m_MipsNum;
-        if (mipmap < 0) mipmap = 0;
+        for (size_t j = 0; j < pCtx->phases.size(); ++j)
+        {
+            // TODO: optimize
+            phases[0] = pCtx->phases[j] + pFreq[i] * 0.5f;
+            phases[1] = pCtx->phases[j] + pFreq[i];
+            phases[2] = phases[1] + pFreq[i + 1] * 0.5f;
+            phases[3] = phases[1] + pFreq[i + 1];
+            if (phases[0] > 1.0f) phases[0] -= 1.0f;
+            if (phases[1] > 1.0f) phases[1] -= 1.0f;
+            if (phases[2] > 1.0f) phases[2] -= 1.0f;
+            if (phases[3] > 1.0f) phases[3] -= 1.0f;
+            pCtx->phases[j] = phases[3];
 
-        __m128 phases_v = _mm_set_ps(phases[3], phases[2], phases[1], phases[0]);
-        samples = Sample_SSE(mipmap, phases_v, pCtx->pInterpolator);
+            float ratio = pFreq[i] * (float)(m_RootSize);
+            int mipmap = Math::log2_int(ratio);
+            if (mipmap > m_MipsNum) mipmap = m_MipsNum;
+            if (mipmap < 0) mipmap = 0;
+
+            __m128 phases_v = _mm_set_ps(phases[3], phases[2], phases[1], phases[0]);
+            samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases_v, pCtx->pInterpolator));
+        }
 
         pOutput[i] =     pCtx->Downsample(samples.m128_f32);
         pOutput[i + 1] = pCtx->Downsample(samples.m128_f32 + 2);
     }
-    pCtx->m_Phase = phases[3];
 }

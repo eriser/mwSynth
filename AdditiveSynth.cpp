@@ -2,6 +2,8 @@
 #include "Wavetable.hpp"
 #include <chrono>
 
+// #define DISABLE_FILE_WRITE
+
 int main(int argc, char* argv[])
 {
     (void)argc;
@@ -49,9 +51,11 @@ int main(int argc, char* argv[])
     std::cout << "Megasamples per second = " << (float)samples.size() / t * 1.0e-6 << std::endl;
     std::cout << "Max generators num     = " << (float)samples.size() / t / 44100.0f << std::endl;
 
+#ifndef DISABLE_FILE_WRITE
     FILE* pFile = fopen("a.wav", "wb");
     fwrite(samples.data(), samples.size() * sizeof(float), 1, pFile);
     fclose(pFile);
+#endif
 
     system("pause");
     return 0;
