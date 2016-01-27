@@ -2,249 +2,173 @@
 #include "Wavetable.hpp"
 #include "Math.hpp"
 
-void free_simd(void* ptr)
-{
-#if defined WIN32
-    _aligned_free(ptr);
-#else
-    free(ptr);
-#endif
-}
+namespace mvSynth {
 
-void* malloc_simd(const size_t size)
-{
-#if defined WIN32
-    return _aligned_malloc(size, 16);
-#elif defined __linux__
-    return memalign(16, size);
-#elif defined __MACH__
-    return malloc(size);
-#else
-    return valloc(size);
-#endif
-}
 
-mwWaveSynthContext::mwWaveSynthContext()
+// Elliptic IIR filter coefficients generated with Octave:
+// ellip(11, 0.5, 100.0, 0.475)
+
+const float WaveTableContext::a[] =
 {
-    phases.push_back(0.0f);
+    0.00237215228669364f,
+    0.01071603665454480f,
+    0.03035791370490471f,
+    0.06070430305500466f,
+    0.09407806181688412f,
+    0.11617732288099189f,
+    0.11617732288099196f,
+    0.09407806181688420f,
+    0.06070430305500469f,
+    0.03035791370490472f,
+    0.01071603665454481f,
+    0.00237215228669364
+};
+
+const float WaveTableContext::b[] =
+{
+    0.0f,
+    -3.225641030483127f,
+    7.937266825410543,
+    -13.361604195910033f,
+    18.160728660560746f,
+    -19.561560159271554f,
+    17.264056989018833f,
+    -12.296805901712231f,
+    6.989483345163727f,
+    -3.043659827605777f,
+    0.932448506264840f,
+    -0.165901630637920f,
+};
+
+WaveTableContext::WaveTableContext()
+{
+    mPhases.push_back(0.0f);
     Reset();
 }
 
-void mwWaveSynthContext::Reset()
+void WaveTableContext::Reset()
 {
     for (int i = 0; i < IIR_FILTER_SIZE; ++i)
-        x[i] = y[i] = 0.0f;
+        mX[i] = mY[i] = 0.0f;
 }
 
-void mwWaveSynthContext::Init(size_t numVoices, float* newPhases)
+void WaveTableContext::Init(size_t numVoices, float* newPhases)
 {
-    phases.clear();
+    mPhases.clear();
     for (int i = 0; i < numVoices; ++i)
-        phases.push_back(newPhases[i]);
+        mPhases.push_back(newPhases[i]);
 }
 
-float mwWaveSynthContext::Downsample(float* input)
+float WaveTableContext::Downsample(float* input)
 {
-    // TODO: cleanup, make SSE and AVX versions as well
     for (int i = 0; i < 2; ++i)
     {
         for (int j = IIR_FILTER_SIZE - 1; j > 0; --j)
         {
-            x[j] = x[j - 1];
-            y[j] = y[j - 1];
+            mX[j] = mX[j - 1];
+            mY[j] = mY[j - 1];
         }
 
-        // lowpass Chebyshev filter generated with:
-        // http://www-users.cs.york.ac.uk/~fisher/mkfilter/
-        //
-        // filtertype   =   Chebyshev
-        // passtype     =   Lowpass
-        // ripple   =   -0.5
-        // order    =   10
-        // samplerate   =   88200
-        // corner1  =   20000
-        x[0] = input[i] / 7.290426784e+03f;
-        y[0] = x[0] + x[10] +
-               10.0f * (x[9] + x[1]) +
-               45.0f * (x[8] + x[2]) +
-               120.0f * (x[7] + x[3]) +
-               210.0f * (x[6] + x[4]) +
-               252.0f * x[5] +
-               ( -0.1979824657f * y[10]) +
-               (  1.2383760478f * y[9]) +
-               ( -4.1332027761f * y[8]) +
-               (  9.3602145643f * y[7]) +
-               (-15.7280128999f * y[6]) +
-               ( 20.3867628124f * y[5]) +
-               (-20.6672437866f * y[4]) +
-               ( 16.2722769093f * y[3]) +
-               ( -9.6890187121f * y[2]) +
-               (  4.0173721372f * y[1]);
+        mX[0] = input[i];
+        float sum = 0.0f;
+        for (int j = 0; j < IIR_FILTER_SIZE; ++j)
+            sum += a[j] * mX[j];
+        for (int j = 0; j < IIR_FILTER_SIZE; ++j)
+            sum -= b[j] * mY[j];
+        mY[0] = sum;
     }
 
-    return y[0];
+    return mY[0];
 }
 
-mwInterpolator::mwInterpolator()
+
+
+WaveTable::WaveTable()
 {
-    m_FilterPhases = m_FilterSize = 0;
-    m_FilterPhasesF = 0.0f;
-    data = nullptr;
+    mData = nullptr;
+    mMipsNum = 0;
+    mRootSize = 0;
 }
 
-mwInterpolator::~mwInterpolator()
-{
-    if (data)
-    {
-        for (int i = 0; i <= m_FilterPhases; i++)
-            free_simd(data[i]);
-
-        free(data);
-        data = nullptr;
-    }
-}
-
-
-int mwInterpolator::Setup(int filterSize, int filterPhases)
-{
-    data = (float**)malloc(sizeof(void*) * (filterPhases + 1));
-
-    for (int i = 0; i <= filterPhases; i++)
-        data[i] = (float*)malloc_simd(sizeof(float) * filterSize);
-
-    m_FilterPhases = filterPhases;
-    m_FilterSize = filterSize;
-    m_FilterPhasesF = (float)filterPhases;
-
-    /*
-        Interpolator cutoff frequency offset. Increased to flatten passband
-    */
-    const double cutoff = 1.1f;
-
-    for (int j = 0; j < filterPhases; j++)
-    {
-        double phase = (float)j / (float)filterPhases;
-
-        for (int i = 0; i < filterSize; i++)
-        {
-            double x = (float)(i - filterSize / 2);
-            double y = Math::Sinc((x + phase) * cutoff);
-            double window = Math::BlackmanHarris(((float)i + phase) / (float)filterSize);
-            data[filterPhases - 1 - j][i] = (float)(y * window);
-        }
-    }
-
-
-    double phase = -1.0 / (float)filterPhases;
-    for (int i = 0; i < filterSize; i++)
-    {
-        double x = (float)(i - filterSize / 2);
-        double y = Math::Sinc((x + phase) * cutoff);
-        double window = Math::BlackmanHarris(((float)i + phase) / (float)filterSize);
-        data[filterPhases][i] = (float)(y * window);
-    }
-
-    return 0;
-}
-
-
-
-mwWaveTable::mwWaveTable()
-{
-    m_ppData = nullptr;
-    m_MipsNum = 0;
-    m_RootSize = 0;
-}
-
-mwWaveTable::~mwWaveTable()
+WaveTable::~WaveTable()
 {
     Release();
 }
 
-void mwWaveTable::Release()
+void WaveTable::Release()
 {
-    if (m_ppData)
+    if (mData)
     {
-        for (int i = 0; i < m_MipsNum; ++i)
+        for (int i = 0; i < mMipsNum; ++i)
         {
-            free(m_ppData[i]);
-            m_ppData[i] = nullptr;
+            free(mData[i]);
+            mData[i] = nullptr;
         }
 
-        free(m_ppData);
-        m_ppData = nullptr;
+        free(mData);
+        mData = nullptr;
     }
 
-    m_MipsNum = 0;
-    m_RootSize = 0;
+    mMipsNum = 0;
+    mRootSize = 0;
 }
 
-/*
-    order:
-    0 -> 1 sample, 1 -> 2 samples, 2 -> 4 samples, ...
-*/
-int mwWaveTable::LoadData(float* pData, int order, const mwInterpolator* pInterpolator)
+int WaveTable::LoadData(float* data, int order, const Interpolator& interpolator)
 {
-    int inSamples = 1 << order; //input samples
-    m_MipsNum = order + 2;
-    m_RootSize = inSamples * 2; // additional level for upsampled signal
+    int inSamples = 1 << order; // calculate number of input samples
+    mMipsNum = order + 2;
+    mRootSize = inSamples * 2; // additional level for upsampled signal
 
-    m_ppData = (float**)malloc(sizeof(float*) * m_MipsNum);
+    mData = (float**)malloc(sizeof(float*) * mMipsNum);
 
-    // calculate FFT of original signal
-    float* pBase = (float*)malloc(sizeof(float) * inSamples * 2);
+    // calculate FFT of the original signal
+    float* rootMipmap = (float*)malloc(sizeof(float) * inSamples * 2);
     for (int i = 0; i < inSamples; i++)
     {
-        pBase[2 * i] = pData[i] / inSamples; // real
-        pBase[2 * i + 1] = 0.0f; // imaginary
+        rootMipmap[2 * i] = data[i] / inSamples; // real part
+        rootMipmap[2 * i + 1] = 0.0f; // imaginary part
     }
-    //printf("--- MIPMAP %i ---\n", 1);
-    //PrintFFT(pBase, inSamples);
-    Math::FFT(pBase, inSamples);
-
+    Math::FFT(rootMipmap, inSamples);
 
     // upsample by IFFT
-    float* pHelper = (float*)malloc(sizeof(float) * inSamples * 4);
-    memcpy(pHelper, pBase, sizeof(float) * inSamples);
-    memcpy(pHelper + 3 * inSamples, pBase + inSamples, sizeof(float) * inSamples);
-    memset(pHelper + inSamples, 0, 2 * sizeof(float) * inSamples);
-    Math::IFFT(pHelper, 2 * inSamples);
-    //printf("\n--- MIPMAP %i ---\n", 0);
-    //PrintFFT(pHelper, 2*inSamples);
+    float* tmpData = (float*)malloc(sizeof(float) * inSamples * 4);
+    memcpy(tmpData, rootMipmap, sizeof(float) * inSamples);
+    memcpy(tmpData + 3 * inSamples, rootMipmap + inSamples, sizeof(float) * inSamples);
+    memset(tmpData + inSamples, 0, 2 * sizeof(float) * inSamples);
+    Math::IFFT(tmpData, 2 * inSamples);
 
-    m_ppData[0] = (float*)malloc(sizeof(float) * (m_RootSize + pInterpolator->m_FilterSize));
-    for (int i = 0; i < m_RootSize; i++)
-        m_ppData[0][i] = pHelper[2 * i];
-    memcpy(&m_ppData[0][m_RootSize], &m_ppData[0][0],
-           sizeof(float) * (pInterpolator->m_FilterSize)); // fold
+    // first mipmap - 2x upsampled input data
+    mData[0] = (float*)malloc(sizeof(float) * (mRootSize + interpolator.mFilterSize));
+    for (int i = 0; i < mRootSize; i++)
+        mData[0][i] = tmpData[2 * i]; // take only real part (imaginary should be zero)
+    memcpy(&mData[0][mRootSize], &mData[0][0], sizeof(float) * (interpolator.mFilterSize)); // folding
 
+    // second mipmap - input data
+    mData[1] = (float*)malloc(sizeof(float) * (mRootSize / 2 + interpolator.mFilterSize));
+    memcpy(mData[1], data, sizeof(float) * mRootSize / 2);
+    memcpy(&mData[1][mRootSize / 2], &mData[1][0],
+           sizeof(float) * (interpolator.mFilterSize)); // folding
 
-    m_ppData[1] = (float*)malloc(sizeof(float) * (m_RootSize / 2 + pInterpolator->m_FilterSize));
-    memcpy(m_ppData[1], pData, sizeof(float) * m_RootSize / 2);
-    memcpy(&m_ppData[1][m_RootSize / 2], &m_ppData[1][0],
-           sizeof(float) * (pInterpolator->m_FilterSize)); // fold
-
+    // generate rest of mipmaps
     int samples = inSamples / 2;
-    for (int i = 2; i < m_MipsNum; i++)
+    for (int i = 2; i < mMipsNum; i++)
     {
-        m_ppData[i] = (float*)malloc(sizeof(float) * (samples + pInterpolator->m_FilterSize));
-
-        memcpy(pHelper, pBase, sizeof(float) * samples);
-        memcpy(pHelper + samples, pBase + 2 * inSamples - samples, sizeof(float) * samples);
-        //pHelper[samples] *= 1 << i;
-        Math::IFFT(pHelper, samples);
+        mData[i] = (float*)malloc(sizeof(float) * (samples + interpolator.mFilterSize));
+        memcpy(tmpData, rootMipmap, sizeof(float) * samples);
+        memcpy(tmpData + samples, rootMipmap + 2 * inSamples - samples, sizeof(float) * samples);
+        Math::IFFT(tmpData, samples);
 
         for (int j = 0; j < samples; j++)
-            m_ppData[i][j] = pHelper[2 * j];
+            mData[i][j] = tmpData[2 * j]; // take only real part
 
-        for (int j = 0; j < pInterpolator->m_FilterSize; ++j) // fold
-            m_ppData[i][j + samples] = m_ppData[i][j];
+        for (int j = 0; j < interpolator.mFilterSize; ++j) // folding
+            mData[i][j + samples] = mData[i][j];
 
         samples /= 2;
     }
 
-    free(pHelper);
-    free(pBase);
+    free(tmpData);
+    free(rootMipmap);
     return 0;
 }
 
@@ -254,28 +178,31 @@ int mwWaveTable::LoadData(float* pData, int order, const mwInterpolator* pInterp
     * ratio - sampling ratio: 1.0f - normal, 2.0f - 2x less harmonics, etc...
     * phase - sampling point [0...1.0f)
 */
-float mwWaveTable::Sample_FPU(int mipmap, float phase, const mwInterpolator* pInterpolator) const
+float WaveTable::Sample_FPU(int mipmap, float phase, const Interpolator& interpolator) const
 {
-    unsigned int mipmapSize = m_RootSize >> mipmap;
+    unsigned int mipmapSize = mRootSize >> mipmap;
     phase *= (float)mipmapSize;
     unsigned int id = (unsigned int)phase;
-    const float* pSrc = m_ppData[mipmap];
+    const float* pSrc = mData[mipmap];
 
     float base_phase = phase - floor(phase);
-    float phase_scaled = base_phase * (float)(
-                             pInterpolator->m_FilterPhases); // scale phase to 0..INTERPOLATOR_FILTER_PHASES-1
-    float phase_factor = phase_scaled - floor(phase_scaled); // phase interpolation coefficient
+
+    // scale phase to 0..INTERPOLATOR_FILTER_PHASES-1
+    float phase_scaled = base_phase * (float)(interpolator.mFilterPhases);
+
+    // phase interpolation coefficient
+    float phase_factor = phase_scaled - floor(phase_scaled);
 
     // select base phase indicies
     int phase_sel = (int)phase_scaled;
 
-    // FIR filter
+    // interpolation (via FIR filter)
     float sum = 0.0;
-    for (int i = 0; i < pInterpolator->m_FilterSize; ++i)
+    for (int i = 0; i < interpolator.mFilterSize; ++i)
     {
         float x0 = pSrc[id + i];
-        float f0 = pInterpolator->data[phase_sel][i];
-        float f1 = pInterpolator->data[phase_sel + 1][i];
+        float f0 = interpolator.data[phase_sel][i];
+        float f1 = interpolator.data[phase_sel + 1][i];
         float f = f0 - phase_factor * (f0 - f1); // lineary interpolate filter coefficients
         sum += x0 * f;
     }
@@ -283,42 +210,49 @@ float mwWaveTable::Sample_FPU(int mipmap, float phase, const mwInterpolator* pIn
     return sum;
 }
 
-void mwWaveTable::Synth_FPU(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx,
-                            float* pOutput)
+void WaveTable::Synth_FPU(size_t samplesNum, const float* freqBuff, WaveTableContext& ctx,
+                          const Interpolator& interpolator, float* output) const
 {
     // iterato through samples
     for (size_t i = 0; i < samplesNum; i++)
     {
-        float freq = pFreq[i];
+        float freq = freqBuff[i];
 
         // cap frequency to half sample rate
-        if (freq > 0.5f) freq = 0.5f;
+        if (freq > 0.5f)
+            freq = 0.5f;
 
         float samples[2] = {0.0f, 0.0f};
 
         // iterate through subvoices
-        for (size_t j = 0; j < pCtx->phases.size(); ++j)
+        for (size_t j = 0; j < ctx.mPhases.size(); ++j)
         {
-            float phaseA = pCtx->phases[j] + freq * 0.5f;
-            float phaseB = pCtx->phases[j] + freq;
-            if (phaseA > 1.0f) phaseA -= 1.0f;
-            if (phaseB > 1.0f) phaseB -= 1.0f;
-            pCtx->phases[j] = phaseB;
+            // calculate phases
+            float phaseA = ctx.mPhases[j] + freq * 0.5f;
+            float phaseB = ctx.mPhases[j] + freq;
+            ctx.mPhases[j] = phaseB;
 
-            float ratio = freq * (float)(m_RootSize);
+            if (phaseA > 1.0f)
+                phaseA -= 1.0f;
+            if (phaseB > 1.0f)
+                phaseB -= 1.0f;
+
+            float ratio = freq * (float)(mRootSize);
+
+            // mipmap selection
+            // TODO: smooth mipmap blending when ratio is near 1.0
             int mipmap = Math::log2_int(ratio);
-            if (mipmap > m_MipsNum) mipmap = m_MipsNum;
-            if (mipmap < 0) mipmap = 0;
+            if (mipmap > mMipsNum)
+                mipmap = mMipsNum;
+            if (mipmap < 0)
+                mipmap = 0;
 
-            samples[0] += Sample_FPU(mipmap, phaseA, pCtx->pInterpolator);
-            samples[1] += Sample_FPU(mipmap, phaseB, pCtx->pInterpolator);
+            samples[0] += Sample_FPU(mipmap, phaseA, interpolator);
+            samples[1] += Sample_FPU(mipmap, phaseB, interpolator);
         }
 
-        pOutput[i] = pCtx->Downsample(samples);
+        output[i] = ctx.Downsample(samples);
     }
 }
 
-void mwWaveTable::Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput)
-{
-
-}
+} // namespace mvSynth

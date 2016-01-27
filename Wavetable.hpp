@@ -1,37 +1,27 @@
 #pragma once
 
+#include "Interpolator.hpp"
 #include <vector>
 
-class mwInterpolator final
-{
-    friend class mwWaveTable;
+namespace mvSynth {
 
-    float** data;
-    int m_FilterSize;
-    int m_FilterPhases;
-    float m_FilterPhasesF;
+#define ALIGNED __declspec(align(16))
 
-public:
-
-    mwInterpolator();
-    ~mwInterpolator();
-    int Setup(int filterSize, int filterPhases);
-};
-
-#define IIR_FILTER_SIZE 11
+#define IIR_FILTER_SIZE 12
 #define MAX_VOICES 16
 
-class mwWaveSynthContext final
+class ALIGNED WaveTableContext final
 {
-    friend class mwWaveTable;
-    std::vector<float> phases;
-    float x[IIR_FILTER_SIZE];
-    float y[IIR_FILTER_SIZE];
+    friend class WaveTable;
+
+    ALIGNED static const float a[];
+    ALIGNED static const float b[];
+    ALIGNED float mX[IIR_FILTER_SIZE];
+    ALIGNED float mY[IIR_FILTER_SIZE];
+    std::vector<float> mPhases;
 
 public:
-    const mwInterpolator* pInterpolator;
-
-    mwWaveSynthContext();
+    WaveTableContext();
 
     /**
      * Clear filter history.
@@ -48,20 +38,20 @@ public:
      * Downsamples two samples into one using IIR lowpass filter.
      * @param input Array of 2 input samples.
      */
-    float Downsample(float* input);
+    __forceinline float Downsample(float* input);
+
+    __forceinline float Downsample_SSE(float* input);
 };
 
-class mwWaveTable
+class WaveTable
 {
-    int m_RootSize; // size of 0th mipmap in samples
-    int m_MipsNum;  // total number of mipmaps = log2(m_RootSize)+1
-    float** m_ppData;
+    int mRootSize; // size of 0th mipmap in samples
+    int mMipsNum;  // total number of mipmaps = log2(m_RootSize)+1
+    float** mData;
 
 public:
-    typedef void (*SynthCallback)(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
-
-    mwWaveTable();
-    ~mwWaveTable();
+    WaveTable();
+    ~WaveTable();
 
     void Release();
 
@@ -69,7 +59,7 @@ public:
         order:
         0 -> 1 sample, 1 -> 2 samples, 2 -> 4 samples, ...
     */
-    int LoadData(float* pData, int order, const mwInterpolator* pInterpolator);
+    int LoadData(float* pData, int order, const Interpolator& interpolator);
 
     /**
      * Interpolate sample from specified mipmap level.
@@ -78,38 +68,47 @@ public:
      * @param phase         sampling point [0.0 .. 1.0)
      * @param pInterpolator interpolator configuration pointer
      */
-    float Sample_FPU(int mipmap, float phase, const mwInterpolator* pInterpolator) const;
+    __forceinline float Sample_FPU(int mipmap, float phase,
+                                   const Interpolator& interpolator) const;
 
     /**
      * SSE version of @p Sample method.
      */
-    __m128 Sample_SSE(int mipmap, __m128 phase, const mwInterpolator* pInterpolator) const;
+    __forceinline __m128 Sample_SSE(int mipmap, __m128 phase,
+                                    const Interpolator& interpolator) const;
 
     /**
      * AVX version of @p Sample method.
      */
-    float Sample_AVX(int mipmap, float phase, const mwInterpolator* pInterpolator) const;
+    __forceinline float Sample_AVX(int mipmap, float phase,
+                                   const Interpolator& interpolator) const;
 
 
     /**
      * Synthesize samples buffer.
      * @param samplesNum   Number of samples to generate.
-     * @param pFreq        Signal frequency for each sample.
-     * @param pCtx         Synthesis context.
-     * @param[out] pOutput Buffer to write.
+     * @param freqBuff     Signal frequency for each sample.
+     * @param ctx          Synthesiser context.
+     * @param interpolator Wavetable interpolator.
+     * @param[out] output  Buffer to write.
      */
-    void Synth(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
-
-    /**
-     * FPU version of @p Synth method.
-     */
-    void Synth_FPU(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
+    void Synth_FPU(size_t samplesNum, const float* freqBuff, WaveTableContext& ctx,
+                   const Interpolator& interpolator, float* output) const;
 
     /**
      * SSE version of @p Synth method.
      */
-    void Synth_SSE(size_t samplesNum, const float* pFreq, mwWaveSynthContext* pCtx, float* pOutput);
+    void Synth_SSE(size_t samplesNum, const float* freqBuff, WaveTableContext& ctx,
+                   const Interpolator& interpolator, float* output) const;
+
+    /**
+     * AVX version of @p Synth method.
+     */
+    void Synth_AVX(size_t samplesNum, const float* freqBuff, WaveTableContext& ctx,
+                   const Interpolator& interpolator, float* output) const;
 };
 
 void* malloc_simd(const size_t size);
 void free_simd(void* ptr);
+
+} // namespace mvSynth

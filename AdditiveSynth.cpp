@@ -2,7 +2,10 @@
 #include "Wavetable.hpp"
 #include <chrono>
 
+using namespace mvSynth;
+
 // #define DISABLE_FILE_WRITE
+
 
 int main(int argc, char* argv[])
 {
@@ -12,11 +15,9 @@ int main(int argc, char* argv[])
     std::vector<float> samples;
     samples.reserve(1000000);
 
-    mwInterpolator interp;
-    interp.Setup(16, 64);
-
-    mwWaveSynthContext ctx;
-    ctx.pInterpolator = &interp;
+    WaveTableContext ctx;
+    Interpolator interpolator;
+    interpolator.Setup(16, 64);
 
 #define WAVE_TABLE_SIZE_POW 11
 #define WAVE_TABLE_SIZE (1<<WAVE_TABLE_SIZE_POW)
@@ -25,8 +26,14 @@ int main(int argc, char* argv[])
         //saw[i] = (i<WAVE_TABLE_SIZE/2) ? -0.5f : 0.5f;
         saw[i] = 1.2f * (-0.5f + (float)i / (float)WAVE_TABLE_SIZE);
 
-    mwWaveTable wt;
-    wt.LoadData(saw, WAVE_TABLE_SIZE_POW, &interp);
+    std::cout << "Wavetable size: " << WAVE_TABLE_SIZE << std::endl;
+
+    WaveTable wt;
+    auto load_start = std::chrono::system_clock::now();
+    wt.LoadData(saw, WAVE_TABLE_SIZE_POW, interpolator);
+    auto load_end = std::chrono::system_clock::now();
+    auto load_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(load_end - load_start);
+    std::cout << "Wavetable generation: " << (double)load_elapsed.count() * 1.0e-6 << " ms" << std::endl;
 
     auto start = std::chrono::system_clock::now();
     {
@@ -35,9 +42,9 @@ int main(int argc, char* argv[])
         {
             float freqBuffer[2];
             float samplesBuffer[2];
-            freqBuffer[0] = (float)(freq *= 1.000001);
-            freqBuffer[1] = (float)(freq *= 1.000001);
-            wt.Synth_SSE(2, freqBuffer, &ctx, samplesBuffer);
+            freqBuffer[0] = (float)(freq *= 1.00001);
+            freqBuffer[1] = (float)(freq *= 1.00001);
+            wt.Synth_SSE(2, freqBuffer, ctx, interpolator, samplesBuffer);
 
             samples.push_back(samplesBuffer[0]);
             samples.push_back(samplesBuffer[1]);
