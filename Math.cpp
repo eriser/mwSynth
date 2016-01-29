@@ -1,21 +1,21 @@
 #include "stdafx.hpp"
 #include "Math.hpp"
 
-namespace Math {
-
-double PI = 3.14159265358979;
+namespace mvSynth {
 
 double BlackmanHarris(double x)
 {
-    return 0.35875 - 0.48828 * cos(2.0 * PI * x) + 0.14128 * cos(4.0 * PI * x) -
-           0.01168 * cos(6.0 * PI * x); //Blackman - Harris
+    return 0.35875
+        - 0.48828 * cos(2.0 * PI * x)
+        + 0.14128 * cos(4.0 * PI * x)
+        - 0.01168 * cos(6.0 * PI * x);
 }
 
-double Sinc(double phase)
+double Sinc(double x)
 {
-    return ((abs(phase) < 1e-2) ?
-            (1.0 - PI * PI * phase * phase) :    // Taylor expansion at phase = 0
-            (sin(PI * phase) / (PI * phase)));
+    return ((abs(x) < 1e-2) ?
+            (1.0 - PI * PI * x * x) :    // Taylor expansion at phase = 0
+            (sin(PI * x) / (PI * x)));
 }
 
 void FFT(float* data, unsigned long nn)
@@ -34,12 +34,15 @@ void FFT(float* data, unsigned long nn)
             std::swap(data[j - 1], data[i - 1]);
             std::swap(data[j], data[i]);
         }
+
         m = nn;
+
         while (m >= 2 && j > m)
         {
             j -= m;
             m >>= 1;
         }
+
         j += m;
     };
 
@@ -48,7 +51,7 @@ void FFT(float* data, unsigned long nn)
     while (n > mmax)
     {
         istep = mmax << 1;
-        theta = -2.0f * (float)PI / (float)mmax;
+        theta = -2.0f * PI / static_cast<float>(mmax);
         wtemp = sin(0.5f * theta);
         wpr = -2.0f * wtemp * wtemp;
         wpi = sin(theta);
@@ -93,4 +96,4 @@ void IFFT(float* data, unsigned long nn)
     //  data[i] *= scale;
 }
 
-}
+} // namespace mvSynth

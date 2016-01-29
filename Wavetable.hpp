@@ -10,6 +10,8 @@ namespace mvSynth {
 #define IIR_FILTER_SIZE 12
 #define MAX_VOICES 16
 
+#define MIPMAP_BLEND_TRESHOLD 0.95f
+
 class ALIGNED WaveTableContext final
 {
     friend class WaveTable;
@@ -68,20 +70,17 @@ public:
      * @param phase         sampling point [0.0 .. 1.0)
      * @param pInterpolator interpolator configuration pointer
      */
-    __forceinline float Sample_FPU(int mipmap, float phase,
-                                   const Interpolator& interpolator) const;
+    float Sample_FPU(int mipmap, float phase, const Interpolator& interpolator) const;
 
     /**
      * SSE version of @p Sample method.
      */
-    __forceinline __m128 Sample_SSE(int mipmap, __m128 phase,
-                                    const Interpolator& interpolator) const;
+    __m128 Sample_SSE(int mipmap, __m128 phase, const Interpolator& interpolator) const;
 
     /**
      * AVX version of @p Sample method.
      */
-    __forceinline float Sample_AVX(int mipmap, float phase,
-                                   const Interpolator& interpolator) const;
+    float Sample_AVX(int mipmap, float phase, const Interpolator& interpolator) const;
 
 
     /**

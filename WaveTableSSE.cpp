@@ -112,6 +112,7 @@ void WaveTable::Synth_SSE(size_t samplesNum, const float* freqBuff, WaveTableCon
 
             ctx.mPhases[j] = phases.m128_f32[3];
 
+            /*
             float ratio = freqBuff[i] * (float)(mRootSize);
             int mipmap = Math::log2_int(ratio);
             if (mipmap > mMipsNum)
@@ -120,6 +121,35 @@ void WaveTable::Synth_SSE(size_t samplesNum, const float* freqBuff, WaveTableCon
                 mipmap = 0;
 
             samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases, interpolator));
+            */
+
+            float ratio = freqBuff[i] * (float)(mRootSize);
+
+            float mipmap_f = fast_log2(ratio);
+            int mipmap = floorf(mipmap_f);
+            float mipmap_pos = mipmap_f - (float)mipmap;
+
+            // mipmap blending
+            if (mipmap_pos > MIPMAP_BLEND_TRESHOLD && mipmap >= 0 && mipmap < mMipsNum)
+            {
+                float blend_factor = mipmap_pos - MIPMAP_BLEND_TRESHOLD;
+                blend_factor *= 1.0f / (1.0f - MIPMAP_BLEND_TRESHOLD);
+
+                __m128 sample = Sample_SSE(mipmap, phases, interpolator);
+                samples = _mm_add_ps(samples, _mm_mul_ps(_mm_set1_ps(1.0f - blend_factor), sample));
+
+                sample = Sample_SSE(mipmap + 1, phases, interpolator);
+                samples = _mm_add_ps(samples, _mm_mul_ps(_mm_set1_ps(blend_factor), sample));
+            }
+            else
+            {
+                if (mipmap > mMipsNum)
+                    mipmap = mMipsNum;
+                if (mipmap < 0)
+                    mipmap = 0;
+
+                samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases, interpolator));
+            }
         }
 
         output[i] =     ctx.Downsample_SSE(samples.m128_f32);

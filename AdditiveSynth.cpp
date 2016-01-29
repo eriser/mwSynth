@@ -6,7 +6,6 @@ using namespace mvSynth;
 
 // #define DISABLE_FILE_WRITE
 
-
 int main(int argc, char* argv[])
 {
     (void)argc;
@@ -23,8 +22,9 @@ int main(int argc, char* argv[])
 #define WAVE_TABLE_SIZE (1<<WAVE_TABLE_SIZE_POW)
     float saw[WAVE_TABLE_SIZE];
     for (int i = 0; i < WAVE_TABLE_SIZE; i++)
-        //saw[i] = (i<WAVE_TABLE_SIZE/2) ? -0.5f : 0.5f;
-        saw[i] = 1.2f * (-0.5f + (float)i / (float)WAVE_TABLE_SIZE);
+        // saw[i] = (i<WAVE_TABLE_SIZE/2) ? -0.5f : 0.5f;
+        // saw[i] = 1.2f * (-0.5f + (float)i / (float)WAVE_TABLE_SIZE);
+        saw[i] = 0.5f * sinf(2.0f * 3.14159265358979f * (float)i / (float)WAVE_TABLE_SIZE);
 
     std::cout << "Wavetable size: " << WAVE_TABLE_SIZE << std::endl;
 

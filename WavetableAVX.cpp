@@ -96,7 +96,7 @@ void WaveTable::Synth_AVX(size_t samplesNum, const float* freqBuff, WaveTableCon
             ctx.mPhases[j] = phases[7];
 
             float ratio = freqBuff[i] * (float)(mRootSize);
-            int mipmap = Math::log2_int(ratio);
+            int mipmap = log2_int(ratio);
             if (mipmap > mMipsNum)
                 mipmap = mMipsNum;
             if (mipmap < 0)

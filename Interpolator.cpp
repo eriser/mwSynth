@@ -47,8 +47,8 @@ int Interpolator::Setup(int filterSize, int filterPhases)
         for (int i = 0; i < filterSize; i++)
         {
             double x = (float)(i - filterSize / 2);
-            double y = Math::Sinc((x + phase) * cutoff);
-            double window = Math::BlackmanHarris(((float)i + phase) / (float)filterSize);
+            double y = Sinc((x + phase) * cutoff);
+            double window = BlackmanHarris(((float)i + phase) / (float)filterSize);
             data[filterPhases - 1 - j][i] = (float)(y * window);
         }
     }
@@ -58,8 +58,8 @@ int Interpolator::Setup(int filterSize, int filterPhases)
     for (int i = 0; i < filterSize; i++)
     {
         double x = (float)(i - filterSize / 2);
-        double y = Math::Sinc((x + phase) * cutoff);
-        double window = Math::BlackmanHarris(((float)i + phase) / (float)filterSize);
+        double y = Sinc((x + phase) * cutoff);
+        double window = BlackmanHarris(((float)i + phase) / (float)filterSize);
         data[filterPhases][i] = (float)(y * window);
     }
 
