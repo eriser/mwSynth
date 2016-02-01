@@ -10,16 +10,16 @@ namespace mvSynth {
 #define IIR_FILTER_SIZE 12
 #define MAX_VOICES 16
 
-#define MIPMAP_BLEND_TRESHOLD 0.95f
+#define MIPMAP_BLEND_TRESHOLD 0.98f
 
 class ALIGNED WaveTableContext final
 {
     friend class WaveTable;
 
-    ALIGNED static const float a[];
-    ALIGNED static const float b[];
-    ALIGNED float mX[IIR_FILTER_SIZE];
-    ALIGNED float mY[IIR_FILTER_SIZE];
+    ALIGNED static const double a[];
+    ALIGNED static const double b[];
+    ALIGNED double mX[IIR_FILTER_SIZE];
+    ALIGNED double mY[IIR_FILTER_SIZE];
     std::vector<float> mPhases;
 
 public:
@@ -40,14 +40,16 @@ public:
      * Downsamples two samples into one using IIR lowpass filter.
      * @param input Array of 2 input samples.
      */
-    __forceinline float Downsample(float* input);
+    float Downsample(float* input);
 
-    __forceinline float Downsample_SSE(float* input);
+    float Downsample_SSE(float* input);
 };
 
 class WaveTable
 {
     int mRootSize; // size of 0th mipmap in samples
+    float mRootSizeF;
+
     int mMipsNum;  // total number of mipmaps = log2(m_RootSize)+1
     float** mData;
 

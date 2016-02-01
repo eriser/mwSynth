@@ -106,8 +106,8 @@ void WaveTable::Synth_AVX(size_t samplesNum, const float* freqBuff, WaveTableCon
             samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases_v, interpolator));
         }
 
-        output[i] = ctx.Downsample(samples.m128_f32);
-        output[i + 1] = ctx.Downsample(samples.m128_f32 + 2);
+        //output[i] = ctx.Downsample(samples.m128_f32);
+        //output[i + 1] = ctx.Downsample(samples.m128_f32 + 2);
     }
 }
 

@@ -33,7 +33,7 @@ int Interpolator::Setup(int filterSize, int filterPhases)
 
     mFilterPhases = filterPhases;
     mFilterSize = filterSize;
-    mFilterPhasesF = (float)filterPhases;
+    mFilterPhasesF = static_cast<float>(filterPhases);
 
     /*
     Interpolator cutoff frequency offset. Increased to flatten passband
@@ -42,14 +42,14 @@ int Interpolator::Setup(int filterSize, int filterPhases)
 
     for (int j = 0; j < filterPhases; j++)
     {
-        double phase = (float)j / (float)filterPhases;
+        double phase = static_cast<float>(j) / static_cast<float>(filterPhases);
 
         for (int i = 0; i < filterSize; i++)
         {
-            double x = (float)(i - filterSize / 2);
+            double x = static_cast<float>(i - filterSize / 2);
             double y = Sinc((x + phase) * cutoff);
-            double window = BlackmanHarris(((float)i + phase) / (float)filterSize);
-            data[filterPhases - 1 - j][i] = (float)(y * window);
+            double window = BlackmanHarris((static_cast<float>(i) + phase) / static_cast<float>(filterSize));
+            data[filterPhases - 1 - j][i] = static_cast<float>(y * window);
         }
     }
 
@@ -59,8 +59,8 @@ int Interpolator::Setup(int filterSize, int filterPhases)
     {
         double x = (float)(i - filterSize / 2);
         double y = Sinc((x + phase) * cutoff);
-        double window = BlackmanHarris(((float)i + phase) / (float)filterSize);
-        data[filterPhases][i] = (float)(y * window);
+        double window = BlackmanHarris((static_cast<float>(i) + phase) / static_cast<float>(filterSize));
+        data[filterPhases][i] = static_cast<float>(y * window);
     }
 
     return 0;

@@ -51,7 +51,8 @@ __forceinline float fast_log2(float val)
     x &= ~(255 << 23);
     x += 127 << 23;
     *exp_ptr = x;
-    val = ((0.16404256f * val - 1.09886529f) * val + 3.1482979f) * val - 1.2134752f;
+    val = ((-1.0f / 3.0f) * val + 2.0f) * val - (2.0f / 3.0f);
+    //val = ((0.16404256f * val - 1.09886529f) * val + 3.1482979f) * val - 1.2134752f;
     return (val + log_2);
 }
 

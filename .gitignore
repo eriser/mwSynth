@@ -11,10 +11,13 @@
 /*.opensdf
 /*.sdf
 /*.vsp
+/*.vspx
+/*.opendb
 /*.psess
 
 # CMake temporary files
 /CMakeFiles
 /CMakeCache.txt
 
+/*.pk
 /*.wav

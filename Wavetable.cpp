@@ -4,43 +4,40 @@
 
 namespace mvSynth {
 
-// TODO: use lower order filter, because this can produce too much noise
-
 // Elliptic IIR filter coefficients generated with Octave:
 // ellip(11, 0.5, 100.0, 0.475)
 
-const float WaveTableContext::a[] =
+const double WaveTableContext::a[] =
 {
-    0.00237215228669364f,
-    0.01071603665454480f,
-    0.03035791370490471f,
-    0.06070430305500466f,
-    0.09407806181688412f,
-    0.11617732288099189f,
-    0.11617732288099196f,
-    0.09407806181688420f,
-    0.06070430305500469f,
-    0.03035791370490472f,
-    0.01071603665454481f,
+    0.00237215228669364,
+    0.01071603665454480,
+    0.03035791370490471,
+    0.06070430305500466,
+    0.09407806181688412,
+    0.11617732288099189,
+    0.11617732288099196,
+    0.09407806181688420,
+    0.06070430305500469,
+    0.03035791370490472,
+    0.01071603665454481,
     0.00237215228669364
 };
 
-const float WaveTableContext::b[] =
+const double WaveTableContext::b[] =
 {
-    0.0f,
-    -3.225641030483127f,
+    0.0,
+    -3.225641030483127,
     7.937266825410543,
-    -13.361604195910033f,
-    18.160728660560746f,
-    -19.561560159271554f,
-    17.264056989018833f,
-    -12.296805901712231f,
-    6.989483345163727f,
-    -3.043659827605777f,
-    0.932448506264840f,
-    -0.165901630637920f,
+    -13.361604195910033,
+    18.160728660560746,
+    -19.561560159271554,
+    17.264056989018833,
+    -12.296805901712231,
+    6.989483345163727,
+    -3.043659827605777,
+    0.932448506264840,
+    -0.165901630637920,
 };
-
 
 WaveTableContext::WaveTableContext()
 {
@@ -51,7 +48,7 @@ WaveTableContext::WaveTableContext()
 void WaveTableContext::Reset()
 {
     for (int i = 0; i < IIR_FILTER_SIZE; ++i)
-        mX[i] = mY[i] = 0.0f;
+        mX[i] = mY[i] = 0.0;
 }
 
 void WaveTableContext::Init(size_t numVoices, float* newPhases)
@@ -71,8 +68,8 @@ float WaveTableContext::Downsample(float* input)
             mY[j] = mY[j - 1];
         }
 
-        mX[0] = input[i];
-        float sum = 0.0f;
+        mX[0] = static_cast<double>(input[i]);
+        double sum = 0.0;
         for (int j = 0; j < IIR_FILTER_SIZE; ++j)
             sum += a[j] * mX[j];
         for (int j = 0; j < IIR_FILTER_SIZE; ++j)
@@ -80,7 +77,7 @@ float WaveTableContext::Downsample(float* input)
         mY[0] = sum;
     }
 
-    return mY[0];
+    return static_cast<float>(mY[0]);
 }
 
 
@@ -118,7 +115,7 @@ void WaveTable::Release()
 // perform signal phase shift in frequency domain
 void PhaseShift(float* data, int samplesNum, float value)
 {
-    float w = 2.0 * PI / (float)samplesNum;
+    float w = 2.0f * PI / static_cast<float>(samplesNum);
 
     for (int i = 0; i < samplesNum; ++i)
     {
@@ -128,7 +125,7 @@ void PhaseShift(float* data, int samplesNum, float value)
         int j = i;
         if (j >= samplesNum / 2)
             j -= samplesNum;
-        float x = w * (float)(j) * value;
+        float x = w * static_cast<float>(j) * value;
         float fr = cosf(x);
         float fi = sinf(x);
 
@@ -142,6 +139,7 @@ int WaveTable::LoadData(float* data, int order, const Interpolator& interpolator
     int inSamples = 1 << order; // calculate number of input samples
     mMipsNum = order + 2;
     mRootSize = inSamples * 2; // additional level for upsampled signal
+    mRootSizeF = static_cast<float>(mRootSize);
 
     mData = (float**)malloc(sizeof(float*) * mMipsNum);
 
@@ -185,7 +183,7 @@ int WaveTable::LoadData(float* data, int order, const Interpolator& interpolator
 
         // I have no idea why, but wavetable downsampled via FFT is phase-shifted.
         // This fixes the problem.
-        float shift = 0.5f - 1.0f / (1 << i);
+        float shift = 1.0f - 1.0f / (1 << i);
         // This is shift below is required, because wavetable phases must match interpolation filter
         // impulse response for each mipmap level.
         shift -= (float)(interpolator.mFilterSize / 2);
@@ -284,11 +282,11 @@ void WaveTable::Synth_FPU(size_t samplesNum, const float* freqBuff, WaveTableCon
 
             ctx.mPhases[j] = phaseB;
 
-            float ratio = freq * (float)(mRootSize);
+            float ratio = freq * mRootSizeF;
 
             float mipmap_f = fast_log2(ratio);
             int mipmap = floorf(mipmap_f);
-            float mipmap_pos = mipmap_f - (float)mipmap;
+            float mipmap_pos = mipmap_f - static_cast<float>(mipmap);
 
             // mipmap blending
             if (mipmap_pos > MIPMAP_BLEND_TRESHOLD && mipmap >= 0 && mipmap < mMipsNum)

@@ -11,28 +11,30 @@ float WaveTableContext::Downsample_SSE(float* input)
 {
     for (int i = 0; i < 2; ++i)
     {
+        // shift history
         for (int j = IIR_FILTER_SIZE - 1; j > 0; --j)
         {
             mX[j] = mX[j - 1];
             mY[j] = mY[j - 1];
         }
 
-        mX[0] = input[i];
+        mX[0] = static_cast<double>(input[i]);
 
-        __m128 sumA, sumB;
-        sumA = _mm_mul_ps(_mm_load_ps(a), _mm_load_ps(mX));
-        sumB = _mm_mul_ps(_mm_load_ps(b), _mm_load_ps(mY));
-        sumA = _mm_add_ps(sumA, _mm_mul_ps(_mm_load_ps(a + 4), _mm_load_ps(mX + 4)));
-        sumB = _mm_add_ps(sumB, _mm_mul_ps(_mm_load_ps(b + 4), _mm_load_ps(mY + 4)));
-        sumA = _mm_add_ps(sumA, _mm_mul_ps(_mm_load_ps(a + 8), _mm_load_ps(mX + 8)));
-        sumB = _mm_add_ps(sumB, _mm_mul_ps(_mm_load_ps(b + 8), _mm_load_ps(mY + 8)));
-        __m128 sum = _mm_sub_ps(sumA, sumB);
+        __m128d sumA, sumB;
+        sumA = _mm_mul_pd(_mm_load_pd(a), _mm_load_pd(mX));
+        sumB = _mm_mul_pd(_mm_load_pd(b), _mm_load_pd(mY));
+        for (int i = 2; i < IIR_FILTER_SIZE; i += 2)
+        {
+            sumA = _mm_add_pd(sumA, _mm_mul_pd(_mm_load_pd(a + i), _mm_load_pd(mX + i)));
+            sumB = _mm_add_pd(sumB, _mm_mul_pd(_mm_load_pd(b + i), _mm_load_pd(mY + i)));
+        }
+        __m128d sum = _mm_sub_pd(sumA, sumB);
 
         // horizontal sum
-        mY[0] = (sum.m128_f32[0] + sum.m128_f32[1]) + (sum.m128_f32[2] + sum.m128_f32[3]);
+        mY[0] = sum.m128d_f64[0] + sum.m128d_f64[1];
     }
 
-    return mY[0];
+    return static_cast<float>(mY[0]);
 }
 
 __m128 WaveTable::Sample_SSE(int mipmap, __m128 phase, const Interpolator& interpolator) const
@@ -112,18 +114,7 @@ void WaveTable::Synth_SSE(size_t samplesNum, const float* freqBuff, WaveTableCon
 
             ctx.mPhases[j] = phases.m128_f32[3];
 
-            /*
-            float ratio = freqBuff[i] * (float)(mRootSize);
-            int mipmap = Math::log2_int(ratio);
-            if (mipmap > mMipsNum)
-                mipmap = mMipsNum;
-            if (mipmap < 0)
-                mipmap = 0;
-
-            samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases, interpolator));
-            */
-
-            float ratio = freqBuff[i] * (float)(mRootSize);
+            float ratio = freqBuff[i] * mRootSizeF;
 
             float mipmap_f = fast_log2(ratio);
             int mipmap = floorf(mipmap_f);
@@ -143,11 +134,8 @@ void WaveTable::Synth_SSE(size_t samplesNum, const float* freqBuff, WaveTableCon
             }
             else
             {
-                if (mipmap > mMipsNum)
-                    mipmap = mMipsNum;
-                if (mipmap < 0)
-                    mipmap = 0;
-
+                if (mipmap > mMipsNum) mipmap = mMipsNum;
+                if (mipmap < 0)        mipmap = 0;
                 samples = _mm_add_ps(samples, Sample_SSE(mipmap, phases, interpolator));
             }
         }

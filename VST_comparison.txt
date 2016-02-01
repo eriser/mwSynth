@@ -1,0 +1,6 @@
+Z3TA+2
+* high precission: 45 voices * 8 unison * 6 osc = 2160
+* highest precission: 34 voices * 8 unison * 5 oscs = 1360
+
+Serum
+* 1x oversampling: 15 voices * 2 oscs * 16 unison = 480
